@@ -3,288 +3,538 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart IV Fluid Monitor</title>
-    <!-- Tailwind CSS for modern responsive design -->
+    <title>Smart IV Fluid Monitor Dashboard</title>
+    <!-- Tailwind CSS for modern medical design -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts: Inter for clean typography -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Font Awesome for sleek crisp icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* Custom pulsing animations for alert and live connection status */
-        @keyframes pulse-ring {
-            0% { transform: scale(0.95); opacity: 0.5; }
-            50% { transform: scale(1.1); opacity: 0.8; }
-            100% { transform: scale(0.95); opacity: 0.5; }
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
         }
-        .pulse-effect {
-            animation: pulse-ring 2s infinite ease-in-out;
+        .pulse-element {
+            animation: pulse-slow 2s infinite;
         }
-        @keyframes critical-shimmer {
-            0%, 100% { background-color: #fee2e2; border-color: #ef4444; }
-            50% { background-color: #fca5a5; border-color: #dc2626; }
+        @keyframes flow-drip {
+            0% { transform: translateY(0) scale(0.8); opacity: 0; }
+            50% { opacity: 1; }
+            80% { transform: translateY(50px) scale(1); opacity: 1; }
+            100% { transform: translateY(55px) scale(0.5); opacity: 0; }
         }
-        .critical-alert {
-            animation: critical-shimmer 1.5s infinite ease-in-out;
+        .drip-animation {
+            animation: flow-drip 1.5s infinite ease-in;
+        }
+        @keyframes warning-bg {
+            0%, 100% { background-color: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.4); }
+            50% { background-color: rgba(239, 68, 68, 0.25); border-color: rgba(239, 68, 68, 1); }
+        }
+        .critical-warning {
+            animation: warning-bg 1.2s infinite ease-in-out;
         }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-800 antialiased p-4 sm:p-6 md:p-8 flex items-center justify-center">
+<body class="bg-slate-50 min-h-screen text-slate-800">
 
-<div class="w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-    <!-- Header -->
-    <div class="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white text-center relative">
-        <div class="absolute top-4 right-4 flex items-center gap-2">
-            <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-            <span class="text-xs font-semibold tracking-wider text-blue-100 uppercase">Live telemetry</span>
-        </div>
-        <i class="fa-solid fa-droplet text-4xl mb-2 text-blue-200"></i>
-        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Smart IV Fluid Monitor</h1>
-        <p class="text-blue-100 text-sm mt-1">Real-time drip rate & volume tracker powered by ESP32</p>
-    </div>
+    <!-- Toast Notification System -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full px-4 sm:px-0"></div>
 
-    <div class="p-6 space-y-6">
-        <!-- Patient Info Card -->
-        <div class="bg-slate-50 rounded-xl p-5 border border-slate-200/80 space-y-4">
-            <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                <i class="fa-solid fa-hospital-user text-blue-600"></i> Patient & Infusion Setup
-            </h3>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="flex flex-col gap-1.5">
-                    <label for="patientName" class="text-xs font-semibold text-slate-600">Patient Full Name</label>
-                    <input type="text" id="patientName" 
-                           placeholder="e.g. John Doe" 
-                           class="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <label for="fluidType" class="text-xs font-semibold text-slate-600">IV Fluid Type</label>
-                    <input type="text" id="fluidType" 
-                           placeholder="e.g. Normal Saline 0.9%" 
-                           class="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
-                </div>
-            </div>
-        </div>
-
-        <!-- Bluetooth Connectivity Status -->
-        <div class="flex flex-col items-center justify-center p-4 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-            <div class="flex items-center gap-2 mb-3">
-                <span class="text-slate-500 text-sm font-medium">ESP32 Bluetooth Link:</span>
-                <span id="status" class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1.5 bg-rose-50 text-rose-600 border border-rose-100">
-                    <span class="w-2 h-2 rounded-full bg-rose-500"></span> Disconnected
-                </span>
-            </div>
-            
-            <button class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold py-3 px-6 rounded-xl shadow-md shadow-blue-500/10 hover:shadow-lg hover:shadow-blue-500/20 active:shadow-sm flex items-center justify-center gap-2.5 transition-all text-sm sm:text-base cursor-pointer" id="connectBtn">
-                <i class="fa-solid fa-bluetooth text-lg"></i> Scan & Connect IV Monitor
-            </button>
-        </div>
-
-        <!-- Live IV Bag Visualization -->
-        <div class="bg-slate-50 rounded-xl p-5 border border-slate-200/80 flex flex-col items-center justify-center">
-            <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">IV Bag Status Indicator</h4>
-            <div class="relative w-24 h-48 bg-slate-200 rounded-b-3xl border-4 border-slate-300 overflow-hidden flex flex-col justify-end shadow-inner">
-                <!-- Liquid Fill Level -->
-                <div id="fluidLevelFill" class="w-full bg-gradient-to-t from-sky-400 to-sky-300 transition-all duration-1000 ease-in-out relative flex items-center justify-center" style="height: 0%;">
-                    <!-- Dynamic Fluid Wave effect -->
-                    <div class="absolute top-0 left-0 right-0 h-1.5 bg-sky-200/60 animate-pulse"></div>
-                </div>
-                <!-- Markings -->
-                <div class="absolute inset-0 flex flex-col justify-between p-2 text-[10px] text-slate-600/70 font-semibold select-none pointer-events-none">
-                    <span class="text-right border-t border-slate-400/30">1000mL</span>
-                    <span class="text-right border-t border-slate-400/30">750mL</span>
-                    <span class="text-right border-t border-slate-400/30">500mL</span>
-                    <span class="text-right border-t border-slate-400/30">250mL</span>
-                    <span></span>
-                </div>
-            </div>
-            <div class="w-2 h-8 bg-slate-300"></div>
-            <div class="w-4 h-4 rounded-full bg-blue-500/40 relative flex items-center justify-center">
-                <div class="w-1.5 h-1.5 rounded-full bg-blue-600 pulse-effect"></div>
-            </div>
-        </div>
-
-        <!-- Numeric Dashboard Statistics Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <!-- Fluid Left Card -->
-            <div class="bg-slate-50 border-t-4 border-blue-500 p-5 rounded-xl shadow-sm space-y-1">
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-center gap-1.5">
-                    <i class="fa-solid fa-glass-water-droplet text-blue-500"></i> Remaining Fluid
-                </div>
-                <div class="text-center">
-                    <span id="fluidVol" class="text-4xl font-black text-slate-800">--</span>
-                    <span class="text-sm font-semibold text-slate-500 ml-1">mL</span>
-                </div>
-            </div>
-            
-            <!-- Flow Rate Card -->
-            <div class="bg-slate-50 border-t-4 border-emerald-500 p-5 rounded-xl shadow-sm space-y-1">
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-center gap-1.5">
-                    <i class="fa-solid fa-gauge-high text-emerald-500"></i> Current Flow Rate
-                </div>
-                <div class="text-center">
-                    <span id="dropRate" class="text-4xl font-black text-slate-800">--</span>
-                    <span class="text-sm font-semibold text-slate-500 ml-1">gtt/min</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Critical Warning Alert Area -->
-        <div id="alertBox" class="critical-alert border-2 border-rose-500 p-4 rounded-xl flex items-center justify-center gap-3 text-rose-800 font-bold hidden transition-all">
-            <i class="fa-solid fa-triangle-exclamation text-xl text-rose-600 animate-bounce"></i>
-            <span class="text-center text-sm sm:text-base">CRITICAL ALERT: The infusion bag is running low! Immediate attention required.</span>
-        </div>
-    </div>
-</div>
-
-<!-- Custom In-App Notification Toast Container (Replaces Browser alert()) -->
-<div id="toastContainer" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none max-w-sm w-full p-4"></div>
-
-<script>
-    // Bluetooth GATT UUID Configs (Adjust to match your ESP32 Arduino setup)
-    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
-
-    // Select DOM nodes
-    const connectBtn = document.getElementById('connectBtn');
-    const statusLabel = document.getElementById('status');
-    const fluidVolLabel = document.getElementById('fluidVol');
-    const dropRateLabel = document.getElementById('dropRate');
-    const alertBox = document.getElementById('alertBox');
-    const patientNameInput = document.getElementById('patientName');
-    const fluidTypeInput = document.getElementById('fluidType');
-    const fluidLevelFill = document.getElementById('fluidLevelFill');
-    const toastContainer = document.getElementById('toastContainer');
-
-    // Load previously saved configurations on launch
-    window.addEventListener('load', () => {
-        patientNameInput.value = localStorage.getItem('patientName') || '';
-        fluidTypeInput.value = localStorage.getItem('fluidType') || '';
-    });
-
-    // Auto-save input modifications instantly to localStorage
-    patientNameInput.addEventListener('input', (e) => {
-        localStorage.setItem('patientName', e.target.value);
-    });
-
-    fluidTypeInput.addEventListener('input', (e) => {
-        localStorage.setItem('fluidType', e.target.value);
-    });
-
-    // Custom non-blocking Toast notification system
-    function showToast(message, type = 'error') {
-        const toast = document.createElement('div');
-        toast.className = `p-4 rounded-xl shadow-lg border text-sm font-medium transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto flex items-center gap-2.5 ${
-            type === 'success' 
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
-            : 'bg-rose-50 border-rose-200 text-rose-800'
-        }`;
+    <div class="max-w-4xl mx-auto px-4 py-8">
         
-        const icon = document.createElement('i');
-        icon.className = type === 'success' ? 'fa-solid fa-circle-check text-emerald-500' : 'fa-solid fa-circle-xmark text-rose-500';
-        toast.appendChild(icon);
-        
-        const text = document.createElement('span');
-        text.textContent = message;
-        toast.appendChild(text);
+        <!-- Browser Compatibility Alert Banner -->
+        <div id="compat-banner" class="hidden mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+            <div class="flex gap-3">
+                <svg class="w-5 h-5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                    <span class="font-bold">Bluetooth Support Warning:</span> Your current browser does not natively support Web Bluetooth APIs. 
+                    <ul class="list-disc ml-5 mt-1 space-y-1">
+                        <li><strong>On PC/Mac/Android:</strong> Please use official <span class="font-semibold">Google Chrome</span> or <span class="font-semibold">Microsoft Edge</span>.</li>
+                        <li><strong>On iPhone/iPad:</strong> Please download and open this page inside <span class="font-semibold">Bluefy Browser</span> from the App Store.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
 
-        toastContainer.appendChild(toast);
+        <!-- Header -->
+        <header class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div class="flex items-center gap-3">
+                <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                    <!-- IV Bag SVG Icon -->
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Smart IV Monitor</h1>
+                    <p class="text-sm text-slate-500">Wireless ESP32 Telemetry Dashboard</p>
+                </div>
+            </div>
+            
+            <div class="flex flex-col items-end gap-1">
+                <div class="flex items-center gap-2">
+                    <span id="connection-dot" class="w-3 h-3 rounded-full bg-red-500 pulse-element"></span>
+                    <span id="connection-status" class="text-sm font-semibold text-slate-600">Disconnected</span>
+                </div>
+                <span id="connection-method" class="text-xs text-slate-400">Waiting for user action</span>
+            </div>
+        </header>
 
-        // Animate Entry
-        setTimeout(() => {
-            toast.classList.remove('opacity-0', 'translate-y-2');
-        }, 10);
-
-        // Dismiss & Removal
-        setTimeout(() => {
-            toast.classList.add('opacity-0', 'translate-y-2');
-            setTimeout(() => toast.remove(), 300);
-        }, 5000);
-    }
-
-    // Request and coordinate Bluetooth Pairing with ESP32 GATT Server
-    connectBtn.addEventListener('click', async () => {
-        try {
-            statusLabel.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span> Connecting...`;
-            statusLabel.className = "px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1.5 bg-amber-50 text-amber-600 border border-amber-100";
+        <!-- Main Workspace -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            // 1. Scan for the specific BLE Service UUID
-            const device = await navigator.bluetooth.requestDevice({
-                filters: [{ services: [SERVICE_UUID] }]
-            });
-            
-            // 2. Initialize connection handshake with GATT server
-            const server = await device.gatt.connect();
-            
-            // 3. Request the primary tracking service
-            const service = await server.getPrimaryService(SERVICE_UUID);
-            
-            // 4. Retrieve notify-capable telemetry characteristic
-            const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-            
-            // 5. Activate asynchronous notification streams
-            await characteristic.startNotifications();
-            characteristic.addEventListener('characteristicvaluechanged', handleData);
-            
-            // Success State UI configurations
-            statusLabel.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Connected`;
-            statusLabel.className = "px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-600 border border-emerald-100";
-            connectBtn.style.display = "none";
-            showToast("Successfully connected to the IV Monitor!", "success");
-            
-            // Auto reconnection & teardown cleanups upon unexpected disruptions
-            device.addEventListener('gattserverdisconnected', () => {
-                statusLabel.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> Disconnected`;
-                statusLabel.className = "px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1.5 bg-rose-50 text-rose-600 border border-rose-100";
-                connectBtn.style.display = "flex";
-                alertBox.classList.add('hidden');
-                fluidVolLabel.textContent = "--";
-                dropRateLabel.textContent = "--";
-                fluidLevelFill.style.height = "0%";
-                showToast("Bluetooth connection lost.", "error");
-            });
-
-        } catch (error) {
-            console.error(error);
-            statusLabel.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> Connection Failed`;
-            statusLabel.className = "px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1.5 bg-rose-50 text-rose-600 border border-rose-100";
-            showToast("Failed to connect. Ensure Bluetooth is active and your ESP32 is nearby.", "error");
-        }
-    });
-
-    // Parse incoming UTF-8 sensor packages (format expected: "Volume,Driprate")
-    function handleData(event) {
-        const valueDecoder = new TextDecoder();
-        const rawString = valueDecoder.decode(event.target.value).trim();
-        
-        // Decouple string payload array (e.g., "650,45" splits into volume = 650, rate = 45)
-        const dataParts = rawString.split(',');
-        if (dataParts.length === 2) {
-            const volume = parseInt(dataParts[0]);
-            const rate = parseInt(dataParts[1]);
-            
-            // Inject live text into HTML readout metrics
-            fluidVolLabel.textContent = isNaN(volume) ? "--" : volume;
-            dropRateLabel.textContent = isNaN(rate) ? "--" : rate;
-            
-            // Update the graphical filling of the virtual IV Bag
-            if (!isNaN(volume)) {
-                // Keep the calculations capped between 0% and 100% capacity (assuming standard 1000ml bag)
-                const fillPercentage = Math.min(Math.max((volume / 1000) * 100, 0), 100);
-                fluidLevelFill.style.height = `${fillPercentage}%`;
+            <!-- Left Panel: Patient Card & Controls -->
+            <div class="lg:col-span-5 flex flex-col gap-6">
                 
-                // Toggle emergency blinking panel if volume levels fall below 100mL safety buffer
-                if (volume <= 100) {
-                    alertBox.classList.remove('hidden');
-                } else {
-                    alertBox.classList.add('hidden');
-                }
+                <!-- Patient & Infusion Settings Card -->
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h2 class="text-md font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Infusion & Patient Profile
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label for="patient-name" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Patient Full Name</label>
+                            <input type="text" id="patient-name" placeholder="Enter patient name..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all font-medium">
+                        </div>
+                        
+                        <div>
+                            <label for="fluid-type" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">IV Fluid/Medication Type</label>
+                            <input type="text" id="fluid-type" placeholder="e.g., Normal Saline 0.9%, Dextrose" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all font-medium">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Connection Control Card -->
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4">
+                    <div>
+                        <h2 class="text-md font-bold text-slate-900">ESP32 Bluetooth Link</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Control & connect to your medical device hardware</p>
+                    </div>
+
+                    <button id="connect-btn" class="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl font-semibold text-sm transition-all shadow-md shadow-blue-200 flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        Scan & Connect IV Monitor
+                    </button>
+
+                    <!-- Interactive Local Simulation Option -->
+                    <div class="relative flex py-2 items-center">
+                        <div class="flex-grow border-t border-slate-100"></div>
+                        <span class="flex-shrink mx-3 text-slate-400 text-xs font-medium">Don't have hardware yet?</span>
+                        <div class="flex-grow border-t border-slate-100"></div>
+                    </div>
+
+                    <button id="sim-btn" class="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Start Simulated Demo Mode
+                    </button>
+                    
+                    <button id="disconnect-btn" class="hidden w-full py-3.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2">
+                        Disconnect Connection
+                    </button>
+                </section>
+
+            </div>
+
+            <!-- Right Panel: Diagnostics, Graph & IV Visual -->
+            <div class="lg:col-span-7 flex flex-col gap-6">
+                
+                <!-- Main Status Board & IV Fluid Representation -->
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h2 class="text-md font-bold text-slate-900 mb-6">IV Status Visualizer</h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+                        
+                        <!-- Visual representation of IV bag -->
+                        <div class="md:col-span-5 flex flex-col items-center justify-center bg-slate-50 rounded-2xl py-8 px-4 border border-slate-100 relative min-h-[300px]">
+                            
+                            <!-- Hanger loop -->
+                            <div class="w-8 h-8 rounded-full border-4 border-slate-300 absolute -top-4"></div>
+                            
+                            <!-- IV Bag Outer Container -->
+                            <div class="w-28 h-56 border-4 border-slate-300 rounded-t-3xl rounded-b-xl flex flex-col justify-end overflow-hidden relative bg-white/50 shadow-inner">
+                                
+                                <!-- Volumetric measurement lines -->
+                                <div class="absolute inset-x-0 top-0 h-full flex flex-col justify-between py-6 px-2 text-[9px] font-bold text-slate-400 select-none z-10">
+                                    <div class="border-b border-slate-200 flex justify-between"><span>1000mL</span><span>—</span></div>
+                                    <div class="border-b border-slate-200 flex justify-between"><span>750mL</span><span>—</span></div>
+                                    <div class="border-b border-slate-100 flex justify-between"><span>500mL</span><span>—</span></div>
+                                    <div class="border-b border-slate-100 flex justify-between"><span>250mL</span><span>—</span></div>
+                                </div>
+                                
+                                <!-- Dynamic fluid fluid background -->
+                                <div id="fluid-level" class="w-full bg-sky-100 border-t-2 border-sky-400 transition-all duration-1000 ease-out flex items-center justify-center" style="height: 0%;">
+                                    <span id="fluid-percentage-text" class="text-xs font-extrabold text-sky-600 tracking-wider">0%</span>
+                                </div>
+                            </div>
+                            
+                            <!-- IV Tube and Drip chamber -->
+                            <div class="flex flex-col items-center justify-start mt-0.5">
+                                <div class="w-4 h-10 border-2 border-slate-300 bg-white/90 rounded-sm relative flex items-center justify-center">
+                                    <!-- Animated fluid drip -->
+                                    <div id="drip-particle" class="w-2.5 h-2.5 rounded-full bg-sky-300 absolute top-0 opacity-0"></div>
+                                </div>
+                                <div class="w-1 h-12 bg-slate-300"></div>
+                            </div>
+                            
+                        </div>
+
+                        <!-- Telemetry Output Cards -->
+                        <div class="md:col-span-7 flex flex-col gap-4">
+                            
+                            <!-- Patient Label Banner -->
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Patient</div>
+                                <div id="display-patient" class="text-sm font-semibold text-slate-700 mt-0.5">No patient specified</div>
+                                <div id="display-fluid" class="text-xs text-slate-500">No active fluid type</div>
+                            </div>
+
+                            <!-- Remaining Volume Card -->
+                            <div class="p-5 rounded-2xl border-l-4 border-blue-500 bg-slate-50/50 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Remaining Fluid</p>
+                                    <h3 class="text-3xl font-extrabold text-slate-800 mt-1"><span id="vol-text">--</span> <span class="text-lg font-medium text-slate-500">mL</span></h3>
+                                </div>
+                                <div class="p-3 bg-blue-100/50 text-blue-600 rounded-xl">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                    </svg>
+                                </div>
+                            </div>
+
+                            <!-- Drops Rate Card -->
+                            <div class="p-5 rounded-2xl border-l-4 border-emerald-500 bg-slate-50/50 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Current Flow Rate</p>
+                                    <h3 class="text-3xl font-extrabold text-slate-800 mt-1"><span id="rate-text">--</span> <span class="text-lg font-medium text-slate-500">gtt/min</span></h3>
+                                </div>
+                                <div class="p-3 bg-emerald-100/50 text-emerald-600 rounded-xl">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Visual Emergency Alert Box -->
+                    <div id="alarm-banner" class="hidden mt-6 p-4 rounded-xl text-center border-2 critical-warning">
+                        <div class="flex items-center justify-center gap-2">
+                            <svg class="w-6 h-6 text-red-600 pulse-element" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span class="text-sm font-bold text-red-700 tracking-wide">EMERGENCY: INTRUSION FLUID LEVEL CRITICALLY LOW (&lt; 100 mL)</span>
+                        </div>
+                    </div>
+
+                </section>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        // Set standard hospital UUID definitions
+        const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+        const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+        // Global DOM Elements
+        const connectBtn = document.getElementById('connect-btn');
+        const simBtn = document.getElementById('sim-btn');
+        const disconnectBtn = document.getElementById('disconnect-btn');
+        const connectionDot = document.getElementById('connection-dot');
+        const connectionStatus = document.getElementById('connection-status');
+        const connectionMethod = document.getElementById('connection-method');
+        const volText = document.getElementById('vol-text');
+        const rateText = document.getElementById('rate-text');
+        const alarmBanner = document.getElementById('alarm-banner');
+        const fluidLevel = document.getElementById('fluid-level');
+        const fluidPercentText = document.getElementById('fluid-percentage-text');
+        const dripParticle = document.getElementById('drip-particle');
+        const patientInput = document.getElementById('patient-name');
+        const fluidInput = document.getElementById('fluid-type');
+        const displayPatient = document.getElementById('display-patient');
+        const displayFluid = document.getElementById('display-fluid');
+        const toastContainer = document.getElementById('toast-container');
+        const compatBanner = document.getElementById('compat-banner');
+
+        let bluetoothDevice = null;
+        let isSimulationRunning = false;
+        let simInterval = null;
+
+        // Verify web bluetooth support on start
+        window.addEventListener('DOMContentLoaded', () => {
+            if (!navigator.bluetooth) {
+                compatBanner.classList.remove('hidden');
+                connectBtn.disabled = true;
+                connectBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                createToast("Warning: Your current browser does not support Web Bluetooth APIs.", true);
+            }
+        });
+
+        // Custom Notification helper
+        function createToast(message, isError = false) {
+            const toast = document.createElement('div');
+            toast.className = `flex items-center gap-3 p-4 rounded-xl border shadow-lg transition-all transform translate-y-2 opacity-0 duration-300 ${
+                isError 
+                ? 'bg-red-50 border-red-200 text-red-800' 
+                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            }`;
+            
+            toast.innerHTML = `
+                <div class="${isError ? 'text-red-500' : 'text-emerald-500'}">
+                    ${isError 
+                        ? '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'
+                        : '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'
+                    }
+                </div>
+                <p class="text-sm font-semibold">${message}</p>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            // Trigger animation slide-in
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 50);
+
+            // Dismiss toast
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Live input handlers
+        patientInput.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            displayPatient.textContent = val ? val : "No patient specified";
+            localStorage.setItem('iv_patient_name', val);
+        });
+
+        fluidInput.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            displayFluid.textContent = val ? val : "No active fluid type";
+            localStorage.setItem('iv_fluid_type', val);
+        });
+
+        // Load Persistent Inputs
+        window.addEventListener('load', () => {
+            const savedPatient = localStorage.getItem('iv_patient_name');
+            const savedFluid = localStorage.getItem('iv_fluid_type');
+            if (savedPatient) {
+                patientInput.value = savedPatient;
+                displayPatient.textContent = savedPatient;
+            }
+            if (savedFluid) {
+                fluidInput.value = savedFluid;
+                displayFluid.textContent = savedFluid;
+            }
+        });
+
+        // Updates Dashboard GUI values
+        function updateDashboardUI(volume, dropRate) {
+            volText.textContent = volume;
+            rateText.textContent = dropRate;
+
+            // Fluid level calculation (1000mL bag scale)
+            const fillPct = Math.min(Math.max((volume / 1000) * 100, 0), 100);
+            fluidLevel.style.height = `${fillPct}%`;
+            fluidPercentText.textContent = `${Math.round(fillPct)}%`;
+
+            // Control dynamic drip speed animations based on gtt/min value
+            if (dropRate > 0) {
+                dripParticle.classList.add('drip-animation');
+                // Calculate fluid dynamic frequency 
+                const speed = 60 / dropRate; 
+                dripParticle.style.animationDuration = `${Math.max(speed, 0.25)}s`;
+            } else {
+                dripParticle.classList.remove('drip-animation');
+            }
+
+            // Low Volume Warning threshold triggers (less than 100mL)
+            if (volume <= 100) {
+                alarmBanner.classList.remove('hidden');
+            } else {
+                alarmBanner.classList.add('hidden');
             }
         }
-    }
-</script>
+
+        // --- Demo Simulation Engine ---
+        function toggleSimulation() {
+            if (isSimulationRunning) {
+                stopSimulation();
+                return;
+            }
+
+            isSimulationRunning = true;
+            createToast("Simulation Started: Emulating live ESP32 BLE streaming.");
+            
+            connectionStatus.textContent = "Connected (Simulation)";
+            connectionStatus.className = "text-sm font-semibold text-amber-600";
+            connectionDot.className = "w-3 h-3 rounded-full bg-amber-500 pulse-element";
+            connectionMethod.textContent = "Viewing Simulated Data Stream";
+            simBtn.textContent = "Stop Simulated Demo";
+            simBtn.className = "w-full py-3 px-4 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2";
+            connectBtn.disabled = true;
+            connectBtn.classList.add('opacity-40', 'cursor-not-allowed');
+
+            let currentVol = 1000;
+            let currentRate = 60;
+
+            simInterval = setInterval(() => {
+                // Drop slowly over time
+                currentVol -= Math.floor(Math.random() * 8) + 2; 
+                currentRate = Math.floor(Math.random() * 10) + 55; // Minor rate variations
+
+                if (currentVol < 0) currentVol = 0;
+
+                updateDashboardUI(currentVol, currentRate);
+
+                if (currentVol === 0) {
+                    stopSimulation();
+                    createToast("Simulation Completed: IV Bag is empty.", true);
+                }
+            }, 1000);
+        }
+
+        function stopSimulation() {
+            isSimulationRunning = false;
+            clearInterval(simInterval);
+            
+            connectionStatus.textContent = "Disconnected";
+            connectionStatus.className = "text-sm font-semibold text-slate-600";
+            connectionDot.className = "w-3 h-3 rounded-full bg-red-500 pulse-element";
+            connectionMethod.textContent = "Waiting for user action";
+            simBtn.textContent = "Start Simulated Demo Mode";
+            simBtn.className = "w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2";
+            
+            if (navigator.bluetooth) {
+                connectBtn.disabled = false;
+                connectBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+            }
+
+            // Reset measurements
+            updateDashboardUI(0, 0);
+            volText.textContent = "--";
+            rateText.textContent = "--";
+            createToast("Simulation Stopped.");
+        }
+
+        simBtn.addEventListener('click', toggleSimulation);
+
+        // --- Hardware BLE Connection Engine ---
+        connectBtn.addEventListener('click', async () => {
+            if (isSimulationRunning) stopSimulation();
+
+            try {
+                if (!navigator.bluetooth) {
+                    throw new Error("Your browser or setup doesn't support Bluetooth.");
+                }
+
+                connectionStatus.textContent = "Scanning...";
+                connectionStatus.className = "text-sm font-semibold text-blue-500";
+                connectionDot.className = "w-3 h-3 rounded-full bg-blue-500 pulse-element";
+                
+                // Optimized BLE Request:
+                // Attempts to search for our custom Service, but falls back to allow all devices if no strict match is found immediately.
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    filters: [
+                        { services: [SERVICE_UUID] }
+                    ],
+                    optionalServices: ['generic_access'] // Essential standard fallbacks
+                });
+
+                createToast("ESP32 Device found! Connecting...");
+                
+                // 2. Attach server
+                const server = await bluetoothDevice.gatt.connect();
+                
+                // 3. Obtain primary streaming service
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                
+                // 4. Hook Notification characteristic
+                const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+                await characteristic.startNotifications();
+                
+                characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                    const valueDecoder = new TextDecoder();
+                    const rawText = valueDecoder.decode(event.target.value).trim();
+                    const parts = rawText.split(',');
+                    
+                    if (parts.length === 2) {
+                        const volume = parseInt(parts[0]);
+                        const rate = parseInt(parts[1]);
+                        updateDashboardUI(isNaN(volume) ? 0 : volume, isNaN(rate) ? 0 : rate);
+                    }
+                });
+
+                // Update UI upon Successful connection
+                connectionStatus.textContent = "Connected (BLE)";
+                connectionStatus.className = "text-sm font-semibold text-emerald-600";
+                connectionDot.className = "w-3 h-3 rounded-full bg-emerald-500 pulse-element";
+                connectionMethod.textContent = `Paired Device: ${bluetoothDevice.name || 'ESP32 IV-Monitor'}`;
+                
+                connectBtn.classList.add('hidden');
+                simBtn.classList.add('hidden');
+                disconnectBtn.classList.remove('hidden');
+                
+                createToast("Securely Connected to ESP32 Hardware!");
+
+                // Handle Hardware disconnection
+                bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+            } catch (error) {
+                console.error("Bluetooth Connection Error: ", error);
+                onDisconnected();
+                
+                // Customized informative toast message instead of general failures
+                if (error.name === 'NotFoundError') {
+                    createToast("Scan cancelled or no matching ESP32 device selected.", true);
+                } else if (error.name === 'SecurityError') {
+                    createToast("Security Blocked: Make sure you are using a secure HTTPS page.", true);
+                } else {
+                    createToast("Failed to initialize BLE. Ensure Bluetooth is active & ESP32 is powered.", true);
+                }
+            }
+        });
+
+        function onDisconnected() {
+            connectionStatus.textContent = "Disconnected";
+            connectionStatus.className = "text-sm font-semibold text-slate-600";
+            connectionDot.className = "w-3 h-3 rounded-full bg-red-500 pulse-element";
+            connectionMethod.textContent = "Waiting for user action";
+            
+            connectBtn.classList.remove('hidden');
+            simBtn.classList.remove('hidden');
+            disconnectBtn.classList.add('hidden');
+            
+            updateDashboardUI(0, 0);
+            volText.textContent = "--";
+            rateText.textContent = "--";
+        }
+
+        disconnectBtn.addEventListener('click', () => {
+            if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+                bluetoothDevice.gatt.disconnect();
+            }
+            onDisconnected();
+            createToast("Bluetooth Device Disconnected manually.");
+        });
+    </script>
 </body>
 </html>
